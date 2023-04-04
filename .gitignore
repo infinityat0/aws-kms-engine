@@ -20,5 +20,6 @@
 hs_err_pid*
 
 # idea and gradle project related files
+build/
 .idea/
 .gradle/
