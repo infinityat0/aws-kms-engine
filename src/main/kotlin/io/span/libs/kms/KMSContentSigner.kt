@@ -11,13 +11,14 @@ import java.io.OutputStream
 import java.nio.ByteBuffer
 
 // This is not a singleton because it will maintain state.
-class KMSContenSigner(
+class KMSContentSigner(
     private val kmsKeyId: String,
     private val kmsClient: AWSKMSClient
 ) : ContentSigner {
 
     private val stream = ByteArrayOutputStream()
 
+    // We want this to be ECDSA_SHA_256.
     override fun getAlgorithmIdentifier() =
         AlgorithmIdentifier(X9ObjectIdentifiers.ecdsa_with_SHA256)
 

@@ -2,39 +2,32 @@ plugins {
     id("org.jetbrains.kotlin.jvm") version "1.6.21"
     id("org.jetbrains.kotlin.kapt") version "1.6.21"
     id("org.jetbrains.kotlin.plugin.allopen") version "1.6.21"
-    id("com.github.johnrengelman.shadow") version "7.1.2"
-    id("io.micronaut.application") version "3.7.4"
 }
 
 version = "0.1"
-group = "io.span.libs.kms"
+group = "io.sunny.libs.kms"
+
+apply plugin: 'java-library'
+apply plugin: 'kotlin'
+apply plugin: 'kotlin-kapt'
 
 repositories {
     mavenCentral()
 }
 
 dependencies {
-    kapt("io.micronaut:micronaut-http-validation")
-
     implementation(
             "org.bouncycastle:bcprov-jdk15on:$bouncyCastleVersion",
             "org.bouncycastle:bcpkix-jdk15on:$bouncyCastleVersion",
             "com.amazonaws:aws-java-sdk:$awsVersion",
-            "io.micronaut.kotlin:micronaut-kotlin-runtime",
-            "jakarta.annotation:jakarta.annotation-api"
+            "org.slf4j:slf4j-api:$slf4jVersion",
     )
-
     testImplementation(
             "io.mockk:mockk:$mockkVersion",
             "io.kotlintest:kotlintest-runner-junit5:$junitVersion",
             "org.junit.jupiter:junit-jupiter:$junitJupiterVersion"
     )
-
-    implementation("io.micronaut:micronaut-validation")
-    implementation("org.jetbrains.kotlin:kotlin-reflect:${kotlinVersion}")
-    implementation("org.jetbrains.kotlin:kotlin-stdlib-jdk8:${kotlinVersion}")
-
-    runtimeOnly("ch.qos.logback:logback-classic")
+    runtimeOnly("ch.qos.logback:logback-classic:$logbackVersion")
 }
 
 java {
@@ -50,6 +43,20 @@ tasks {
     compileTestKotlin {
         kotlinOptions {
             jvmTarget = "17"
+        }
+    }
+}
+
+test {
+    useJUnitPlatform {
+        includeEngines("junit-jupiter")
+    }
+    systemProperties = System.properties // so can pass -Dkotlintest.tags.include/exclude
+    testLogging {
+        events "passed", "skipped", "failed"
+        if (project.hasProperty("output")) {
+            // Run gradle with -Poutput to show standard out and error streams.
+            showStandardStreams = true
         }
     }
 }
