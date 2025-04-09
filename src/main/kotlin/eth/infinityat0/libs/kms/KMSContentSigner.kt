@@ -1,4 +1,4 @@
-package io.span.libs.kms
+package eth.infinityat0.libs.kms
 
 import com.amazonaws.services.kms.AWSKMSClient
 import com.amazonaws.services.kms.model.MessageType
