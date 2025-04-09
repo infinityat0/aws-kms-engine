@@ -1,4 +1,4 @@
-package io.span.libs.kms
+package eth.infinityat0.libs.kms
 
 import java.io.File
 import org.junit.jupiter.api.Test
@@ -9,7 +9,7 @@ class CSRSignerTest {
     @Test
     fun `decoding a PEM encoded CSR works`() {
         val csrPemString = contentsOfFile("csr.pem")
-        assertDoesNotThrow { CSRSigner.readCSRInPem(csrPemString.toByteArray()) }
+        assertDoesNotThrow { CSRSigner.readCSR(csrPemString.toByteArray(), CSRSigner.CSREncoding.PEM) }
     }
 
     companion object {

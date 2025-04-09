@@ -1,10 +1,7 @@
-package io.span.libs.kms
+package eth.infinityat0.libs.kms
 
 import com.amazonaws.services.kms.AWSKMSClient
 import com.amazonaws.services.kms.model.GetPublicKeyRequest
-import io.span.libs.kms.CSRSigner.Companion.getPublicKey
-import io.span.libs.kms.CSRSigner.Companion.getRandomSerial
-import io.span.libs.kms.CSRSigner.Companion.readCSRInPem
 import java.security.PublicKey
 import java.util.Date
 import java.util.UUID
@@ -24,6 +21,11 @@ import org.bouncycastle.asn1.x509.KeyUsage
 import org.bouncycastle.cert.jcajce.JcaX509ExtensionUtils
 import org.bouncycastle.cert.jcajce.JcaX509v3CertificateBuilder
 import org.slf4j.LoggerFactory
+import eth.infinityat0.libs.kms.CSRSigner.CSREncoding
+import eth.infinityat0.libs.kms.CSRSigner.Companion.readCSR
+import eth.infinityat0.libs.kms.CSRSigner.Companion.getRandomSerial
+import eth.infinityat0.libs.kms.CSRSigner.Companion.getPublicKeyFromCSR
+import eth.infinityat0.libs.kms.CSRSigner.Companion.getPublicKey
 
 class KMSBasedCSRSigner(
     private val caConfig: CertConfig,
@@ -53,22 +55,23 @@ class KMSBasedCSRSigner(
 
         logger.ifDebug { "CertSigner: Creating a root cert for $subject, from=$now, until=$then" }
 
+        val extUtils = JcaX509ExtensionUtils()
         val contentSigner = KMSContentSigner(kmsKeyId, kmsClient)
-        val rootCertBuilder = JcaX509v3CertificateBuilder(
+
+        return JcaX509v3CertificateBuilder(
             /* issuer = */ subject,
             /* serial = */ serialNumber,
             /* notBefore = */ now,
             /* notAfter = */ then,
             /* subject = */ subject,
-            /* publicKey = */ publicKey
-        )
+            /* publicKey = */ publicKey,
+        ).apply {
             // Since this is self-signed, we DO NOT need authorityKeyIdentifier
-            .addExtension(basicConstraints, true, BasicConstraints(/* cA = */ true))
-            .addExtension(subjectKeyIdentifier, false, extUtils.createSubjectKeyIdentifier(publicKey))
-            .addExtension(keyUsage, false, keyUsages)
-            .addExtension(extendedKeyUsage, true, extendedKeyUsages)
-
-        return rootCertBuilder.build(contentSigner).encoded
+            addExtension(basicConstraints, true, BasicConstraints(/* cA = */ true))
+            addExtension(subjectKeyIdentifier, false, extUtils.createSubjectKeyIdentifier(publicKey))
+            addExtension(keyUsage, false, keyUsages)
+            addExtension(extendedKeyUsage, true, extendedKeyUsages)
+        }.build(contentSigner).encoded
     }
 
     /**
@@ -78,33 +81,37 @@ class KMSBasedCSRSigner(
      * @return DER encoded ASN.1 sequence representing the generated X509 Certificate
      */
     override fun signCSR(csrPemBytes: ByteArray): ByteArray {
-        val csr = readCSRInPem(csrPemBytes)
+        val csr = readCSR(csrPemBytes, CSREncoding.PEM)
         val now = Date()
         val then = Date(now.time + CERT_VALIDITY.inWholeMilliseconds)
         val subject = X500Principal("CN=${UUID.randomUUID()}")
+        val serialNumber = getRandomSerial()
 
         logger.ifDebug { "CertSigner: Creating a cert for $subject, from=$now, until=$then" }
 
         // CA Certificate is a certificate that wraps the public key for which private key is in KMS
         val caCert = caConfig.certificate
+        val extUtils = JcaX509ExtensionUtils()
         val caCertContentSigner = KMSContentSigner(caConfig.privateKeyArn, kmsClient)
         val extendedKeyUsages = ExtendedKeyUsage(arrayOf(id_kp_serverAuth, id_kp_clientAuth))
 
-        val operationCertBuilder = JcaX509v3CertificateBuilder(
-            /* issuer = */ caCert.issuerX500Principal,
-            /* serial = */ caCert.serialNumber,
+        return JcaX509v3CertificateBuilder(
+            /* issuer = */ caCert.subjectX500Principal,
+            /* serial = */ serialNumber,
             /* notBefore = */ now,
             /* notAfter = */ then,
             /* subject = */ subject,
-            /* publicKey = */ getPublicKey(csr)
-        )
-            .addExtension(basicConstraints, true, BasicConstraints(/* cA = */ false))
-            .addExtension(authorityKeyIdentifier, false, extUtils.createAuthorityKeyIdentifier(caCert))
-            .addExtension(subjectKeyIdentifier, false, extUtils.createSubjectKeyIdentifier(csr.subjectPublicKeyInfo))
-            .addExtension(keyUsage, false, KeyUsage(KeyUsage.digitalSignature))
-            .addExtension(extendedKeyUsage, true, extendedKeyUsages)
-
-        return operationCertBuilder.build(caCertContentSigner).encoded
+            /* publicKey = */ getPublicKeyFromCSR(csr)
+        ).apply {
+            addExtension(basicConstraints, true, BasicConstraints(/* cA = */ false))
+            // There's a bug in bouncycastle that sets the signer certificate's
+            // issuer as the authorityKeyIdentifier's GivenName. That's wrong. Do not pass caCert here
+            // See: https://datatracker.ietf.org/doc/html/rfc5280#section-4.2.1.1
+            addExtension(authorityKeyIdentifier, false, extUtils.createAuthorityKeyIdentifier(caCert.publicKey))
+            addExtension(subjectKeyIdentifier, false, extUtils.createSubjectKeyIdentifier(csr.subjectPublicKeyInfo))
+            addExtension(keyUsage, false, KeyUsage(KeyUsage.digitalSignature))
+            addExtension(extendedKeyUsage, true, extendedKeyUsages)
+        }.build(caCertContentSigner).encoded
     }
 
     private fun getPublicKeyFromKMS(privateKeyId: String): PublicKey {
@@ -117,7 +124,6 @@ class KMSBasedCSRSigner(
 
     companion object {
         private val CERT_VALIDITY = 365.days
-        private val extUtils = JcaX509ExtensionUtils()
 
         private val logger = LoggerFactory.getLogger("KMSBasedCSRSigner")
     }
