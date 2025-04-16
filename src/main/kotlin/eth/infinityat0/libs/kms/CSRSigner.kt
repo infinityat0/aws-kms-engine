@@ -22,6 +22,9 @@ interface CSRSigner {
 
     /**
      * Generates a self-signed cert and returns the encoded DER X509 certificate
+     * @param keyId - KMS Key Id corresponding to the private key
+     * @param subjectCN - Subject Common Name for the self-signed cert
+     * @param validity - Validity of the certificate that's geneerated
      */
     fun generateSelfSignedCert(
         keyId: String,
