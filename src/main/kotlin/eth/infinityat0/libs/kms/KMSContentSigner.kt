@@ -3,6 +3,7 @@ package eth.infinityat0.libs.kms
 import com.amazonaws.services.kms.AWSKMSClient
 import com.amazonaws.services.kms.model.MessageType
 import com.amazonaws.services.kms.model.SignRequest
+import com.amazonaws.services.kms.model.SigningAlgorithmSpec
 import org.bouncycastle.asn1.x509.AlgorithmIdentifier
 import org.bouncycastle.asn1.x9.X9ObjectIdentifiers
 import org.bouncycastle.operator.ContentSigner
@@ -28,6 +29,7 @@ class KMSContentSigner(
         val request = SignRequest()
             .withKeyId(kmsKeyId)
             .withMessageType(MessageType.RAW)
+            .withSigningAlgorithm(SigningAlgorithmSpec.ECDSA_SHA_256)
             .withMessage(ByteBuffer.wrap(stream.toByteArray()))
 
         return kmsClient.sign(request).signature.array()

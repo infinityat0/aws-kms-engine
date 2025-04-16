@@ -106,14 +106,27 @@ class KMSBasedCSRSigner(
             addExtension(basicConstraints, true, BasicConstraints(/* cA = */ false))
             // There's a bug in bouncycastle that sets the signer certificate's
             // issuer as the authorityKeyIdentifier's GivenName. That's wrong. Do not pass caCert here
+            // Pass caCert's public key instead.
             // See: https://datatracker.ietf.org/doc/html/rfc5280#section-4.2.1.1
             addExtension(authorityKeyIdentifier, false, extUtils.createAuthorityKeyIdentifier(caCert.publicKey))
             addExtension(subjectKeyIdentifier, false, extUtils.createSubjectKeyIdentifier(csr.subjectPublicKeyInfo))
             addExtension(keyUsage, false, KeyUsage(KeyUsage.digitalSignature))
             addExtension(extendedKeyUsage, true, extendedKeyUsages)
-        }.build(caCertContentSigner).encoded
+        }
+        .build(caCertContentSigner)
+        .encoded
     }
 
+    /**
+     * Returns the public key connected to the private key in KMS.
+     *
+     * You can ask KMS to return you a public key.
+     * But, why? Just download it and use it in application.yaml
+     *
+     * @param privateKeyId - The KMS Key-ID of the private key whose corresponding public key
+     *    needs to be fetched.
+     * @return - The Public Key.
+     */
     private fun getPublicKeyFromKMS(privateKeyId: String): PublicKey {
         val publicKeyBytes = kmsClient
             .getPublicKey(GetPublicKeyRequest().withKeyId(privateKeyId))
